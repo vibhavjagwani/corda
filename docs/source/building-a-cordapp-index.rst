@@ -11,7 +11,6 @@ CorDapps
    cordapp-build-systems
    building-against-master
    corda-api
-   serialization-index
    secure-coding-guidelines
    flow-cookbook
    vault
