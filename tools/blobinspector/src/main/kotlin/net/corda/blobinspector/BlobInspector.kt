@@ -42,7 +42,7 @@ fun main(args: Array<String>) {
 }
 
 @Command(
-        name = "Blob Inspector",
+        name = "blob-inspector",
         versionProvider = CordaVersionProvider::class,
         mixinStandardHelpOptions = true,   // add --help and --version options,
         showDefaultValues = true,
@@ -75,10 +75,7 @@ class BlobInspector : Runnable {
 
         val inputBytes = source!!.readBytes()
         val bytes = parseToBinaryRelaxed(inputFormatType, inputBytes)
-        if (bytes == null) {
-            println("Error: this input does not appear to be encoded in Corda's AMQP extended format, sorry.")
-            return
-        }
+                ?: throw IllegalArgumentException("Error: this input does not appear to be encoded in Corda's AMQP extended format, sorry.")
 
         if (schema) {
             val envelope = DeserializationInput.getEnvelope(bytes.sequence())
@@ -104,10 +101,8 @@ class BlobInspector : Runnable {
 
     private fun parseToBinaryRelaxed(format: InputFormatType, inputBytes: ByteArray): ByteArray? {
         // Try the format the user gave us first, then try the others.
-        return parseToBinary(format, inputBytes) ?:
-               parseToBinary(InputFormatType.HEX, inputBytes) ?:
-               parseToBinary(InputFormatType.BASE64, inputBytes) ?:
-               parseToBinary(InputFormatType.BINARY, inputBytes)
+        return parseToBinary(format, inputBytes) ?: parseToBinary(InputFormatType.HEX, inputBytes)
+        ?: parseToBinary(InputFormatType.BASE64, inputBytes) ?: parseToBinary(InputFormatType.BINARY, inputBytes)
     }
 
     private fun parseToBinary(format: InputFormatType, inputBytes: ByteArray): ByteArray? {
@@ -118,10 +113,13 @@ class BlobInspector : Runnable {
                 InputFormatType.BASE64 -> BaseEncoding.base64().decode(String(inputBytes).trim())
             }
             require(bytes.size > amqpMagic.size) { "Insufficient bytes for AMQP blob" }
-            return if (bytes.copyOf(amqpMagic.size).contentEquals(amqpMagic.bytes))
+            return if (bytes.copyOf(amqpMagic.size).contentEquals(amqpMagic.bytes)) {
+                if (verbose)
+                    println("Parsing input as $format")
                 bytes
-            else
+            } else {
                 null   // Not an AMQP blob.
+            }
         } catch (t: Throwable) {
             return null   // Failed to parse in some other way.
         }
@@ -141,6 +139,7 @@ private object AMQPInspectorSerializationScheme : AbstractAMQPSerializationSchem
     override fun canDeserializeVersion(magic: CordaSerializationMagic, target: SerializationContext.UseCase): Boolean {
         return magic == amqpMagic && target == SerializationContext.UseCase.P2P
     }
+
     override fun rpcClientSerializerFactory(context: SerializationContext) = throw UnsupportedOperationException()
     override fun rpcServerSerializerFactory(context: SerializationContext) = throw UnsupportedOperationException()
 }
